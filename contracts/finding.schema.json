@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Temple-Maker/Project-Touhou/blob/main/contracts/finding.schema.json",
+  "title": "Finding record",
+  "description": "One accessibility barrier, or one thing a person must check, observed on one element in one page state. Every check, agent and tester session emits this shape. A finding is an observation and never changes; its lifecycle (open, fixed, verified) lives in the ledger.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "run_id",
+    "created_at",
+    "target",
+    "state",
+    "element",
+    "criterion",
+    "check",
+    "outcome",
+    "confidence",
+    "severity",
+    "summary",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "id": {
+      "description": "Fingerprint of where and what, so the same barrier found twice gets the same id. Computed by touhou.contracts.finding_id; see contracts/README.md.",
+      "type": "string",
+      "pattern": "^fnd_[0-9a-f]{16}$"
+    },
+    "run_id": {
+      "description": "The run that produced this record.",
+      "type": "string",
+      "pattern": "^run_[0-9A-Za-z_-]{6,64}$"
+    },
+    "created_at": {
+      "description": "UTC time in ISO 8601 form, ending in Z.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app", "url"],
+      "properties": {
+        "app": {
+          "description": "Corpus key (owner/name from corpus/manifest.csv) or a short name for any other target.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "url": {
+          "description": "The page as loaded, including host and port.",
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "repo": {
+          "description": "Source repository as owner/name, when known.",
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": {
+          "description": "Full commit hash of the source that was running, when known.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "state": {
+      "description": "How to reach the page state where the barrier appears, so a fix can be re-tested by script and by a person.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "viewport"],
+      "properties": {
+        "steps": {
+          "description": "Steps to replay after loading target.url. Empty when the barrier is visible on load.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "viewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "description": {
+          "description": "The state in plain words, for example: checkout form after submitting with an empty email.",
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "element": {
+      "description": "The element the finding is about, or null for a finding about the whole page.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selector", "html"],
+          "properties": {
+            "selector": {
+              "description": "A CSS selector that matches exactly this element in this state.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "html": {
+              "description": "The element's opening tag and as much of its content as fits.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "role": { "type": "string", "maxLength": 60 },
+            "name": {
+              "description": "The computed accessible name, which may be empty.",
+              "type": "string",
+              "maxLength": 300
+            },
+            "source_hint": {
+              "description": "Where the element comes from in source, when it can be traced.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "component": { "type": "string" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["standard", "version", "id", "level"],
+      "properties": {
+        "standard": { "const": "WCAG" },
+        "version": { "enum": ["2.0", "2.1", "2.2"] },
+        "id": {
+          "description": "Success criterion number, for example 4.1.2.",
+          "type": "string",
+          "pattern": "^[1-4]\\.[0-9]{1,2}\\.[0-9]{1,2}$"
+        },
+        "level": { "enum": ["A", "AA", "AAA"] }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source"],
+      "properties": {
+        "id": {
+          "description": "Namespace and name of the check, for example axe:image-alt or touhou:focus-order.",
+          "type": "string",
+          "pattern": "^[a-z0-9-]+:[A-Za-z0-9_.-]+$"
+        },
+        "source": {
+          "description": "rule: a deterministic check. agent: a model's verdict with evidence. tester: a person in a session.",
+          "enum": ["rule", "agent", "tester"]
+        },
+        "tool": { "type": "string", "maxLength": 60 },
+        "tool_version": { "type": "string", "maxLength": 40 },
+        "model": {
+          "description": "The model that judged, for agent findings.",
+          "type": "string",
+          "maxLength": 80
+        },
+        "act_rule": {
+          "description": "Id of the W3C ACT rule this check implements, when there is one.",
+          "type": "string",
+          "pattern": "^[0-9a-z]{6}$"
+        }
+      }
+    },
+    "outcome": {
+      "description": "failed: the barrier is there. cantTell: a person has to decide. Passes are not findings; they are counted per criterion in run.json.",
+      "enum": ["failed", "cantTell"]
+    },
+    "confidence": {
+      "description": "confirmed: a deterministic check or a person observed it. judged: a model concluded it from the evidence attached. needs-person: nobody has decided yet.",
+      "enum": ["confirmed", "judged", "needs-person"]
+    },
+    "severity": {
+      "description": "blocker: the task cannot be completed. serious: it can, with real difficulty. moderate and minor: friction.",
+      "enum": ["blocker", "serious", "moderate", "minor"]
+    },
+    "summary": {
+      "description": "One plain sentence saying what is wrong and for whom.",
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 200
+    },
+    "evidence": {
+      "description": "What supports the finding. At least one item.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "remediation_hint": {
+      "description": "A short suggestion for the fix. Never a claim that the fix is sufficient.",
+      "type": "string",
+      "maxLength": 1000
+    },
+    "tester": {
+      "description": "Present only for findings from a session. Holds no names or contact details.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_code", "setup", "task", "result", "synthetic"],
+      "properties": {
+        "session_code": {
+          "description": "Anonymous code for the session.",
+          "type": "string",
+          "pattern": "^ses_[0-9a-z]{8,32}$"
+        },
+        "setup": {
+          "description": "The assistive technology and settings used, for example NVDA on Windows or keyboard only. Never a diagnosis.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+        },
+        "task": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "result": { "enum": ["completed", "completed-with-difficulty", "blocked"] },
+        "synthetic": {
+          "description": "true for scripted sessions and sessions run by the project's own maintainers.",
+          "type": "boolean"
+        }
+      }
+    },
+    "extensions": {
+      "description": "Free-form space for experiments. Nothing may depend on it across workstreams.",
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "description": "A rule finding is always a confirmed failure.",
+      "if": {
+        "required": ["check"],
+        "properties": { "check": { "required": ["source"], "properties": { "source": { "const": "rule" } } } }
+      },
+      "then": {
+        "properties": { "confidence": { "const": "confirmed" }, "outcome": { "const": "failed" } },
+        "not": { "required": ["tester"] }
+      }
+    },
+    {
+      "description": "An agent finding is judged or handed to a person, never confirmed.",
+      "if": {
+        "required": ["check"],
+        "properties": { "check": { "required": ["source"], "properties": { "source": { "const": "agent" } } } }
+      },
+      "then": {
+        "properties": { "confidence": { "enum": ["judged", "needs-person"] } },
+        "not": { "required": ["tester"] }
+      }
+    },
+    {
+      "description": "A tester finding is a confirmed failure and carries the session.",
+      "if": {
+        "required": ["check"],
+        "properties": { "check": { "required": ["source"], "properties": { "source": { "const": "tester" } } } }
+      },
+      "then": {
+        "required": ["tester"],
+        "properties": { "confidence": { "const": "confirmed" }, "outcome": { "const": "failed" } }
+      }
+    },
+    {
+      "description": "needs-person and cantTell always go together.",
+      "if": { "required": ["confidence"], "properties": { "confidence": { "const": "needs-person" } } },
+      "then": { "properties": { "outcome": { "const": "cantTell" } } },
+      "else": { "properties": { "outcome": { "const": "failed" } } }
+    }
+  ],
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["goto", "click", "fill", "press", "hover", "focus", "select", "wait"] },
+        "selector": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "value": { "type": "string", "maxLength": 500 },
+        "key": {
+          "description": "Key name for press, for example Tab or Enter.",
+          "type": "string",
+          "maxLength": 40
+        },
+        "url": {
+          "description": "For goto. A path on the target's own origin, starting with a slash, so ids do not change with host or port.",
+          "type": "string",
+          "pattern": "^/"
+        },
+        "ms": {
+          "description": "For wait.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "anyOf": [{ "required": ["path"] }, { "required": ["text"] }, { "required": ["data"] }],
+      "properties": {
+        "kind": {
+          "enum": ["dom", "screenshot", "sr-transcript", "keyboard-trace", "contrast", "tester-comment", "log"]
+        },
+        "path": {
+          "description": "File under the run's artifacts directory, relative to the run directory.",
+          "type": "string",
+          "pattern": "^artifacts/"
+        },
+        "text": { "type": "string", "maxLength": 4000 },
+        "data": { "type": "object" }
+      }
+    }
+  }
+}

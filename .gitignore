@@ -221,3 +221,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-Touhou
+.corpus/
+runs/
+touhou.db
+touhou.db-*
+.claude/worktrees/
+node_modules/
