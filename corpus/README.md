@@ -3,7 +3,7 @@
 The control set every phase runs against. Everything is pinned to a commit so
 that two runs a week apart see identical inputs.
 
-Nothing from the corpus is stored in this repository. `touhou corpus fetch`
+Nothing from the corpus is stored in this repository. `kuebiko corpus fetch`
 clones each item into `.corpus/`, which is git-ignored. Twelve of the real
 applications are AGPL or GPL, so keep their code out of this tree.
 

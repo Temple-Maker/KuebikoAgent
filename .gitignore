@@ -222,10 +222,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Project-Touhou
+# KuebikoAgent
 .corpus/
 runs/
-touhou.db
-touhou.db-*
+kuebiko.db
+kuebiko.db-*
 .claude/worktrees/
 node_modules/

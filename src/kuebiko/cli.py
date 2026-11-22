@@ -1,4 +1,4 @@
-"""The ``touhou`` command.
+"""The ``kuebiko`` command.
 
 This file only dispatches. Each command belongs to one workstream, which adds
 the module named in ``COMMANDS`` with two functions::
@@ -16,7 +16,7 @@ import importlib
 import sys
 from collections.abc import Sequence
 
-from touhou import __version__
+from kuebiko import __version__
 
 EXIT_OK = 0
 EXIT_THRESHOLD = 1
@@ -26,15 +26,15 @@ EXIT_NOT_IMPLEMENTED = 4
 
 # command -> (module that implements it, owner, one-line help)
 COMMANDS: dict[str, tuple[str, str, str]] = {
-    "corpus": ("touhou.corpus.cli", "workstream 1", "Fetch pinned corpus items into .corpus/"),
-    "scan": ("touhou.checks.cli", "workstream 2", "Run the rule scan and deterministic checks"),
-    "audit": ("touhou.audit.cli", "workstream 3", "Run the scan, then the audit agent"),
-    "report": ("touhou.report.cli", "workstream 4", "Write the per-criterion report for a run"),
-    "eval": ("touhou.evals.cli", "workstream 5", "Score a tool or baseline on a labelled suite"),
-    "fix": ("touhou.remediate.fix_cli", "workstream 6", "Propose a fix as a pull request"),
-    "verify": ("touhou.remediate.verify_cli", "workstream 6", "Re-test a finding and record the result"),
-    "preview": ("touhou.harness.preview_cli", "workstream 7", "Serve a preview build with a task and feedback form"),
-    "session": ("touhou.harness.session_cli", "workstream 7", "Import or list tester sessions"),
+    "corpus": ("kuebiko.corpus.cli", "workstream 1", "Fetch pinned corpus items into .corpus/"),
+    "scan": ("kuebiko.checks.cli", "workstream 2", "Run the rule scan and deterministic checks"),
+    "audit": ("kuebiko.audit.cli", "workstream 3", "Run the scan, then the audit agent"),
+    "report": ("kuebiko.report.cli", "workstream 4", "Write the per-criterion report for a run"),
+    "eval": ("kuebiko.evals.cli", "workstream 5", "Score a tool or baseline on a labelled suite"),
+    "fix": ("kuebiko.remediate.fix_cli", "workstream 6", "Propose a fix as a pull request"),
+    "verify": ("kuebiko.remediate.verify_cli", "workstream 6", "Re-test a finding and record the result"),
+    "preview": ("kuebiko.harness.preview_cli", "workstream 7", "Serve a preview build with a task and feedback form"),
+    "session": ("kuebiko.harness.session_cli", "workstream 7", "Import or list tester sessions"),
 }
 
 
@@ -51,7 +51,7 @@ def _load(module_name: str):
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--ledger", default="touhou.db", metavar="PATH", help="ledger database file")
+    parser.add_argument("--ledger", default="kuebiko.db", metavar="PATH", help="ledger database file")
     parser.add_argument("--out", default="runs", metavar="DIR", help="where run directories are written")
     parser.add_argument("--json", action="store_true", help="print only the machine-readable result")
     parser.add_argument("--quiet", action="store_true", help="print errors only")
@@ -59,10 +59,10 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="touhou",
+        prog="kuebiko",
         description="Find accessibility barriers, propose fixes, collect feedback.",
     )
-    parser.add_argument("--version", action="version", version=f"touhou {__version__}")
+    parser.add_argument("--version", action="version", version=f"kuebiko {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     for name, (module_name, owner, help_text) in COMMANDS.items():
         module = _load(module_name)
@@ -86,7 +86,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_USAGE
     if args._run is None:
         print(
-            f"touhou {args.command} is not implemented yet (owner: {args._owner}). "
+            f"kuebiko {args.command} is not implemented yet (owner: {args._owner}). "
             "See contracts/cli.md.",
             file=sys.stderr,
         )

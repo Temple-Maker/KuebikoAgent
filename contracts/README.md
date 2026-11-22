@@ -20,7 +20,7 @@ every pull request.
 Contracts are frozen. To change one:
 
 1. Open a pull request that changes only `contracts/`, the matching code in
-   `src/touhou/contracts.py` and the examples.
+   `src/kuebiko/contracts.py` and the examples.
 2. Title it `contract: ` followed by what changes.
 3. Bump `schema_version` when a record that used to validate would stop
    validating, or the reverse.
@@ -57,7 +57,7 @@ values joined by newlines:
 5. `criterion.id`
 6. `check.id`
 
-`touhou.contracts.finding_id` is the reference implementation. Use it; do not
+`kuebiko.contracts.finding_id` is the reference implementation. Use it; do not
 write another one.
 
 Two findings from different checks about the same element get different ids.

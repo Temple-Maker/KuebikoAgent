@@ -1,4 +1,4 @@
--- Project-Touhou findings ledger, schema version 0.1.
+-- KuebikoAgent findings ledger, schema version 0.1.
 --
 -- SQLite dialect. Times are UTC text in ISO 8601 form ending in Z.
 -- Columns ending in _json hold JSON text.
@@ -43,7 +43,7 @@ CREATE TABLE runs (
 );
 
 CREATE TABLE findings (
-  id              TEXT PRIMARY KEY,   -- fingerprint from touhou.contracts.finding_id
+  id              TEXT PRIMARY KEY,   -- fingerprint from kuebiko.contracts.finding_id
   first_run_id    TEXT NOT NULL REFERENCES runs (run_id),
   last_run_id     TEXT NOT NULL REFERENCES runs (run_id),
   app             TEXT NOT NULL,

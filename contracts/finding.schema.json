@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Temple-Maker/Project-Touhou/blob/main/contracts/finding.schema.json",
+  "$id": "https://github.com/Temple-Maker/KuebikoAgent/blob/main/contracts/finding.schema.json",
   "title": "Finding record",
   "description": "One accessibility barrier, or one thing a person must check, observed on one element in one page state. Every check, agent and tester session emits this shape. A finding is an observation and never changes; its lifecycle (open, fixed, verified) lives in the ledger.",
   "type": "object",
@@ -26,7 +26,7 @@
       "const": "0.1"
     },
     "id": {
-      "description": "Fingerprint of where and what, so the same barrier found twice gets the same id. Computed by touhou.contracts.finding_id; see contracts/README.md.",
+      "description": "Fingerprint of where and what, so the same barrier found twice gets the same id. Computed by kuebiko.contracts.finding_id; see contracts/README.md.",
       "type": "string",
       "pattern": "^fnd_[0-9a-f]{16}$"
     },
@@ -156,7 +156,7 @@
       "required": ["id", "source"],
       "properties": {
         "id": {
-          "description": "Namespace and name of the check, for example axe:image-alt or touhou:focus-order.",
+          "description": "Namespace and name of the check, for example axe:image-alt or kuebiko:focus-order.",
           "type": "string",
           "pattern": "^[a-z0-9-]+:[A-Za-z0-9_.-]+$"
         },

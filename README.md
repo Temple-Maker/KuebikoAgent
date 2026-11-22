@@ -1,5 +1,5 @@
-# Project-Touhou
-[Personal Project] Project-Touhou is inspired by accessibility-centric coding agents created for the sole-purpose of making software more accessible; benchmarked by users and deployed by devs, this project seeks to make all software more accessible and usable for certain underrepresented populations.
+# KuebikoAgent
+[Personal Project] KuebikoAgent is inspired by accessibility-centric coding agents created for the sole-purpose of making software more accessible; benchmarked by users and deployed by devs, this project seeks to make all software more accessible and usable for certain underrepresented populations.
 
 ## Status
 
@@ -18,5 +18,5 @@ python scripts/validate_contracts.py
 pytest -q
 ```
 
-Project-Touhou reports evidence about accessibility barriers. It never certifies
+KuebikoAgent reports evidence about accessibility barriers. It never certifies
 that a site meets a standard or a law.

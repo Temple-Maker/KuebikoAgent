@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from touhou import __version__, cli
+from kuebiko import __version__, cli
 
 
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:

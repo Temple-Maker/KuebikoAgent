@@ -1,6 +1,6 @@
-# Project-Touhou: rules for every agent
+# KuebikoAgent: rules for every agent
 
-Project-Touhou finds accessibility barriers in web apps, proposes fixes as pull
+KuebikoAgent finds accessibility barriers in web apps, proposes fixes as pull
 requests, and collects feedback from people who use assistive technology.
 
 This file is the single rulebook. Claude Code, Codex and human contributors all
@@ -21,7 +21,7 @@ follow it. `CLAUDE.md` only imports this file, so edit rules here and nowhere el
    If a contract blocks you, open that pull request and keep working behind an
    adapter in your own directory.
 5. **Stay in your lane.** Edit only the directories your workstream owns (see the
-   table below). Shared files (`pyproject.toml`, `.github/`, `src/touhou/cli.py`,
+   table below). Shared files (`pyproject.toml`, `.github/`, `src/kuebiko/cli.py`,
    this file) change in small dedicated pull requests.
 6. **Corpus code stays out of this repository.** Clone pinned apps into
    `.corpus/`, which is git-ignored. Several of them are AGPL or GPL.
@@ -62,13 +62,13 @@ before writing any HTML.
 These are the defaults for the first release. Change them only through a
 dedicated pull request.
 
-- Python 3.12 or later. The package is `touhou` under `src/touhou`, and the
-  command is `touhou`.
+- Python 3.12 or later. The package is `kuebiko` under `src/kuebiko`, and the
+  command is `kuebiko`.
 - Playwright for Python drives Chromium.
 - axe-core runs inside the page for the rule scan.
 - Guidepup's virtual screen reader, a JavaScript package, supplies screen-reader
   output. Workstream 2 chooses how to load it and documents the choice.
-- SQLite holds the findings ledger (`touhou.db`). Its schema is
+- SQLite holds the findings ledger (`kuebiko.db`). Its schema is
   `contracts/ledger.sql`.
 - pytest for tests. Unit tests make no network calls.
 
@@ -80,7 +80,7 @@ dedicated pull request.
 | Ledger | `contracts/ledger.sql` | Where findings, fixes, verifications and sessions are stored |
 | Command line | `contracts/cli.md` | Command names, options, outputs and exit codes |
 
-`src/touhou/contracts.py` loads and validates them. Use it; do not re-implement
+`src/kuebiko/contracts.py` loads and validates them. Use it; do not re-implement
 validation or the finding fingerprint.
 
 ## Workstreams
@@ -90,13 +90,13 @@ GitHub issue.
 
 | # | Workstream | Owns | Done when |
 | --- | --- | --- | --- |
-| 1 | Target runner and corpus | `src/touhou/runner/`, `src/touhou/corpus/`, `corpus/` | `touhou corpus fetch --tier D-core` clones the six core apps at their pinned commits, and the runner can load a URL and replay recorded steps |
-| 2 | Deterministic checks and ledger | `src/touhou/checks/`, `src/touhou/ledger/` | `touhou scan` emits valid finding records for the planted-barrier pages and writes them to the ledger |
-| 3 | Audit agent | `src/touhou/audit/` | `touhou audit` beats scan-only recall on `corpus/act-subset.csv` with a false-discovery rate under 10% |
-| 4 | Standards and report | `src/touhou/standards/`, `src/touhou/report/`, `standards/` | Every check maps to one success criterion and passes its ACT cases, and the report lists pass, fail, needs a person and not checked |
-| 5 | Evals | `src/touhou/evals/`, `evals/` | `touhou eval act-subset` produces `eval.json` for both baselines, and CI runs the scan baseline |
-| 6 | Remediation agent | `src/touhou/remediate/` | On A11YBench Lite and seeded TodoMVC, fixes clear the finding, keep tests green and trip no gaming guard |
-| 7 | Tester harness | `src/touhou/harness/` | The maintainer completes a task in it by keyboard alone and by screen reader, and it passes its own audit |
+| 1 | Target runner and corpus | `src/kuebiko/runner/`, `src/kuebiko/corpus/`, `corpus/` | `kuebiko corpus fetch --tier D-core` clones the six core apps at their pinned commits, and the runner can load a URL and replay recorded steps |
+| 2 | Deterministic checks and ledger | `src/kuebiko/checks/`, `src/kuebiko/ledger/` | `kuebiko scan` emits valid finding records for the planted-barrier pages and writes them to the ledger |
+| 3 | Audit agent | `src/kuebiko/audit/` | `kuebiko audit` beats scan-only recall on `corpus/act-subset.csv` with a false-discovery rate under 10% |
+| 4 | Standards and report | `src/kuebiko/standards/`, `src/kuebiko/report/`, `standards/` | Every check maps to one success criterion and passes its ACT cases, and the report lists pass, fail, needs a person and not checked |
+| 5 | Evals | `src/kuebiko/evals/`, `evals/` | `kuebiko eval act-subset` produces `eval.json` for both baselines, and CI runs the scan baseline |
+| 6 | Remediation agent | `src/kuebiko/remediate/` | On A11YBench Lite and seeded TodoMVC, fixes clear the finding, keep tests green and trip no gaming guard |
+| 7 | Tester harness | `src/kuebiko/harness/` | The maintainer completes a task in it by keyboard alone and by screen reader, and it passes its own audit |
 
 Order matters on day one. Workstreams 1, 2 and 5 go first because the others
 import them. Workstream 2 ships the ledger module as its own small pull request

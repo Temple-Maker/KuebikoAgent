@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from touhou import cli, contracts  # noqa: E402
+from kuebiko import cli, contracts  # noqa: E402
 
 EXPECTED_TABLES = {"schema_meta", "runs", "findings", "fixes", "sessions", "verifications"}
 TIERS = {
@@ -53,7 +53,7 @@ def check_schema() -> None:
         return
     check(
         contracts.finding_schema()["properties"]["schema_version"]["const"] == contracts.SCHEMA_VERSION,
-        "finding.schema.json schema_version does not match touhou.contracts.SCHEMA_VERSION",
+        "finding.schema.json schema_version does not match kuebiko.contracts.SCHEMA_VERSION",
     )
 
 
@@ -92,7 +92,7 @@ def check_ledger() -> None:
         ).fetchone()
         check(
             version is not None and version[0] == contracts.SCHEMA_VERSION,
-            "ledger schema_version does not match touhou.contracts.SCHEMA_VERSION",
+            "ledger schema_version does not match kuebiko.contracts.SCHEMA_VERSION",
         )
         # The enumerations in the ledger must accept every value the finding schema allows.
         properties = contracts.finding_schema()["properties"]
@@ -147,14 +147,14 @@ def check_act_subset() -> None:
 def check_cli_contract() -> None:
     text = (ROOT / "contracts" / "cli.md").read_text(encoding="utf-8")
     table = text.split("## Commands", 1)[1].split("##", 1)[0]
-    documented = set(re.findall(r"^\| `touhou ([a-z]+)` \|", table, flags=re.MULTILINE))
+    documented = set(re.findall(r"^\| `kuebiko ([a-z]+)` \|", table, flags=re.MULTILINE))
     implemented = set(cli.COMMANDS)
     check(
         documented == implemented,
-        f"contracts/cli.md lists {sorted(documented)} but src/touhou/cli.py has {sorted(implemented)}",
+        f"contracts/cli.md lists {sorted(documented)} but src/kuebiko/cli.py has {sorted(implemented)}",
     )
     for name in implemented:
-        check(f"## touhou {name}" in text, f"contracts/cli.md has no section for 'touhou {name}'")
+        check(f"## kuebiko {name}" in text, f"contracts/cli.md has no section for 'kuebiko {name}'")
 
 
 def main() -> int:

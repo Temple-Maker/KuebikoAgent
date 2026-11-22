@@ -35,9 +35,9 @@
     "level": "A"
   },
   "check": {
-    "id": "touhou:focus-order",
+    "id": "kuebiko:focus-order",
     "source": "agent",
-    "tool": "touhou",
+    "tool": "kuebiko",
     "tool_version": "0.0.1",
     "model": "example-model"
   },

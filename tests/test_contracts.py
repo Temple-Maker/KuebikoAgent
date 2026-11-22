@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from touhou import contracts
+from kuebiko import contracts
 
 ROOT = Path(__file__).resolve().parents[1]
 VALID = sorted((ROOT / "contracts" / "examples").glob("*.json"))

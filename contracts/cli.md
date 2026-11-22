@@ -1,6 +1,6 @@
 # Command-line contract
 
-Version 0.1. The command is `touhou`. This file fixes command names, options,
+Version 0.1. The command is `kuebiko`. This file fixes command names, options,
 output files and exit codes so that seven workstreams can build against each
 other without talking.
 
@@ -10,17 +10,17 @@ Words in CAPITALS below are values you supply. They are not typed literally.
 
 | Command | Owner | What it does |
 | --- | --- | --- |
-| `touhou corpus` | Workstream 1 | Fetches pinned corpus items into `.corpus/` |
-| `touhou scan` | Workstream 2 | Runs the rule scan and deterministic checks on a target |
-| `touhou audit` | Workstream 3 | Runs the scan, then the audit agent, on a target |
-| `touhou report` | Workstream 4 | Writes the per-criterion report for a run |
-| `touhou eval` | Workstream 5 | Scores a tool or baseline on a labelled suite |
-| `touhou fix` | Workstream 6 | Proposes a fix for findings as a pull request |
-| `touhou verify` | Workstream 6 | Re-tests a finding and records the result |
-| `touhou preview` | Workstream 7 | Serves a preview build with a task and a feedback form |
-| `touhou session` | Workstream 7 | Imports or lists tester sessions |
+| `kuebiko corpus` | Workstream 1 | Fetches pinned corpus items into `.corpus/` |
+| `kuebiko scan` | Workstream 2 | Runs the rule scan and deterministic checks on a target |
+| `kuebiko audit` | Workstream 3 | Runs the scan, then the audit agent, on a target |
+| `kuebiko report` | Workstream 4 | Writes the per-criterion report for a run |
+| `kuebiko eval` | Workstream 5 | Scores a tool or baseline on a labelled suite |
+| `kuebiko fix` | Workstream 6 | Proposes a fix for findings as a pull request |
+| `kuebiko verify` | Workstream 6 | Re-tests a finding and records the result |
+| `kuebiko preview` | Workstream 7 | Serves a preview build with a task and a feedback form |
+| `kuebiko session` | Workstream 7 | Imports or lists tester sessions |
 
-`src/touhou/cli.py` dispatches each command to the module its owner provides.
+`src/kuebiko/cli.py` dispatches each command to the module its owner provides.
 A command with no module yet exits with code 4. Owners never edit `cli.py`;
 they add the module named there, with two functions:
 
@@ -33,7 +33,7 @@ def run(args) -> int: ...        # do the work, return the exit code
 
 | Option | Meaning |
 | --- | --- |
-| `--ledger PATH` | Ledger database file. Default `touhou.db` in the current directory |
+| `--ledger PATH` | Ledger database file. Default `kuebiko.db` in the current directory |
 | `--out DIR` | Where to write the run directory. Default `runs/` |
 | `--json` | Print the machine-readable result to standard output and nothing else |
 | `--quiet` | Print errors only |
@@ -58,7 +58,7 @@ starts with `run_`:
 | `findings.jsonl` | One finding record per line, each valid against `finding.schema.json` |
 | `run.json` | The run summary below |
 | `artifacts/` | Screenshots, DOM snapshots and transcripts that findings point to |
-| `report.md` | Written by `touhou report` |
+| `report.md` | Written by `kuebiko report` |
 
 `run.json` has these keys:
 
@@ -89,57 +89,57 @@ starts with `run_`:
 `result` for a criterion is one of `pass`, `fail`, `needs-person` or
 `not-checked`. A criterion with no check is `not-checked`, never `pass`.
 
-## touhou corpus
+## kuebiko corpus
 
 ```
-touhou corpus fetch [--tier TIER] [--dest DIR]
-touhou corpus list
+kuebiko corpus fetch [--tier TIER] [--dest DIR]
+kuebiko corpus list
 ```
 
 Clones each row of `corpus/manifest.csv` at its pinned commit into `.corpus/`.
 TIER is a value from the manifest's `tier` column, for example `D-core`. It never
 writes inside the repository's tracked files.
 
-## touhou scan
+## kuebiko scan
 
 ```
-touhou scan TARGET [--steps FILE] [--criteria LIST] [--fail-on SEVERITY]
+kuebiko scan TARGET [--steps FILE] [--criteria LIST] [--fail-on SEVERITY]
 ```
 
 TARGET is a URL or a corpus key. FILE is a JSON array of steps in the shape
 `finding.schema.json` defines. LIST is comma-separated criterion numbers.
 Emits only findings with `check.source` equal to `rule`.
 
-## touhou audit
+## kuebiko audit
 
 ```
-touhou audit TARGET [--steps FILE] [--criteria LIST] [--fail-on SEVERITY]
-                    [--model NAME] [--max-cost USD]
+kuebiko audit TARGET [--steps FILE] [--criteria LIST] [--fail-on SEVERITY]
+                     [--model NAME] [--max-cost USD]
 ```
 
 Runs everything `scan` runs, then the audit agent. Agent findings carry
 `check.source` equal to `agent` and never the confidence `confirmed`. The
 command stops and exits 3 when spend would pass `--max-cost`.
 
-## touhou report
+## kuebiko report
 
 ```
-touhou report RUN_ID [--format md|json|html]
+kuebiko report RUN_ID [--format md|json|html]
 ```
 
 Lists every criterion in the profile as pass, fail, needs a person or not
 checked, with the findings behind each. The report never uses the words
 "compliant", "conformant" or "certified".
 
-## touhou eval
+## kuebiko eval
 
 ```
-touhou eval SUITE [--baseline scan|instructions] [--limit N] [--model NAME]
-                  [--max-cost USD]
+kuebiko eval SUITE [--baseline scan|instructions] [--limit N] [--model NAME]
+                   [--max-cost USD]
 ```
 
 SUITE is one of `act-subset`, `act`, `apg-seeded`, `todomvc-seeded` or
-`a11ybench-lite`. Without `--baseline` it scores `touhou audit`. It writes
+`a11ybench-lite`. Without `--baseline` it scores `kuebiko audit`. It writes
 `eval.json` into the run directory:
 
 ```json
@@ -165,11 +165,11 @@ SUITE is one of `act-subset`, `act`, `apg-seeded`, `todomvc-seeded` or
 The numbers in that example are made up to show the shape. Floors live in
 `evals/thresholds.toml`, and the command exits 1 when a floor is missed.
 
-## touhou fix
+## kuebiko fix
 
 ```
-touhou fix FINDING_ID [FINDING_ID ...] --repo PATH [--no-pr] [--allow-judged]
-                                       [--max-cost USD]
+kuebiko fix FINDING_ID [FINDING_ID ...] --repo PATH [--no-pr] [--allow-judged]
+                                        [--max-cost USD]
 ```
 
 Accepts only findings whose confidence is `confirmed` unless `--allow-judged`
@@ -177,30 +177,30 @@ is given. Writes the fix on a new branch, runs the checks again, runs every
 guard in `docs/gaming-patterns.md`, adds one regression test, and opens a pull
 request. It never merges and never pushes to the default branch.
 
-## touhou verify
+## kuebiko verify
 
 ```
-touhou verify FINDING_ID [--session CODE]
+kuebiko verify FINDING_ID [--session CODE]
 ```
 
 Replays the finding's steps and runs its check again. With `--session` it
 records a session verification instead. Exits 1 when the barrier is still there.
 
-## touhou preview
+## kuebiko preview
 
 ```
-touhou preview --app APP --task TEXT [--url URL] [--port PORT]
+kuebiko preview --app APP --task TEXT [--url URL] [--port PORT]
 ```
 
 Serves the feedback layer next to a running preview build and prints the link
 to hand to a tester. The page it serves follows the accessibility rules in
 `AGENTS.md`.
 
-## touhou session
+## kuebiko session
 
 ```
-touhou session import FILE [--synthetic]
-touhou session list
+kuebiko session import FILE [--synthetic]
+kuebiko session list
 ```
 
 Imports a session file into the ledger. A session holds an anonymous code, the
