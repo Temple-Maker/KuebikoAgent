@@ -290,12 +290,13 @@
         "key": {
           "description": "Key name for press, for example Tab or Enter.",
           "type": "string",
+          "minLength": 1,
           "maxLength": 40
         },
         "url": {
-          "description": "For goto. A path on the target's own origin, starting with a slash, so ids do not change with host or port.",
+          "description": "For goto. A path on the target's own origin, starting with a single slash, so ids do not change with host or port. A second slash or a backslash after the first would reach another origin.",
           "type": "string",
-          "pattern": "^/"
+          "pattern": "^/(?![/\\\\])"
         },
         "ms": {
           "description": "For wait.",
@@ -303,7 +304,30 @@
           "minimum": 0,
           "maximum": 60000
         }
-      }
+      },
+      "allOf": [
+        {
+          "description": "Each action carries what it needs to be replayed.",
+          "if": { "properties": { "action": { "const": "goto" } } },
+          "then": { "required": ["url"] }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["click", "hover", "focus"] } } },
+          "then": { "required": ["selector"] }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["fill", "select"] } } },
+          "then": { "required": ["selector", "value"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "press" } } },
+          "then": { "required": ["key"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "wait" } } },
+          "then": { "required": ["ms"] }
+        }
+      ]
     },
     "evidence": {
       "type": "object",
@@ -315,9 +339,9 @@
           "enum": ["dom", "screenshot", "sr-transcript", "keyboard-trace", "contrast", "tester-comment", "log"]
         },
         "path": {
-          "description": "File under the run's artifacts directory, relative to the run directory.",
+          "description": "File under the run's artifacts directory, relative to the run directory. No '..' segments and no backslashes, so it cannot point outside that directory.",
           "type": "string",
-          "pattern": "^artifacts/"
+          "pattern": "^artifacts/(?!(.*/)?\\.\\.(/|$))[^\\\\]+$"
         },
         "text": { "type": "string", "maxLength": 4000 },
         "data": { "type": "object" }

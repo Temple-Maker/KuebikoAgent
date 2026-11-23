@@ -67,8 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     for name, (module_name, owner, help_text) in COMMANDS.items():
         module = _load(module_name)
         if module is None:
+            # No arguments declared: main() ignores whatever follows and exits 4.
             sub = subparsers.add_parser(name, help=f"{help_text} (not implemented yet)", add_help=False)
-            sub.add_argument("rest", nargs=argparse.REMAINDER)
             sub.set_defaults(_run=None, _owner=owner)
             continue
         sub = subparsers.add_parser(name, help=help_text)
@@ -80,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args, extra = parser.parse_known_args(argv)
     if args.command is None:
         parser.print_help()
         return EXIT_USAGE
@@ -91,6 +91,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return EXIT_NOT_IMPLEMENTED
+    if extra:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")  # exits 2, as parse_args would
     return int(args._run(args))
 
 

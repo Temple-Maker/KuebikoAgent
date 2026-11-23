@@ -46,6 +46,64 @@ def test_fingerprint_changes_with_the_element() -> None:
     assert contracts.finding_id(other) != contracts.finding_id(record)
 
 
+def test_fingerprint_keeps_hash_routes_apart() -> None:
+    record = load(ROOT / "contracts" / "examples" / "rule-confirmed.json")
+    cart, checkout = json.loads(json.dumps(record)), json.loads(json.dumps(record))
+    cart["target"]["url"] = "http://localhost:8080/#/cart"
+    checkout["target"]["url"] = "http://localhost:8080/#/checkout"
+    assert contracts.finding_id(cart) != contracts.finding_id(checkout)
+
+
+def with_change(change) -> dict:
+    """The agent-judged example after one change, with its id recomputed."""
+    record = load(ROOT / "contracts" / "examples" / "agent-judged.json")
+    change(record)
+    record["id"] = contracts.finding_id(record)
+    return record
+
+
+def add_step(step: dict):
+    return lambda record: record["state"]["steps"].append(step)
+
+
+def add_artifact(path: str):
+    return lambda record: record["evidence"].append({"kind": "log", "path": path})
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        add_step({"action": "goto", "url": "//outside.example/page"}),
+        add_step({"action": "goto", "url": "/\\outside.example/page"}),
+        add_step({"action": "goto"}),
+        add_step({"action": "click"}),
+        add_step({"action": "fill", "selector": "input#email"}),
+        add_step({"action": "press"}),
+        add_step({"action": "wait"}),
+        add_artifact("artifacts/../../outside.txt"),
+        add_artifact("artifacts/shots/../../outside.txt"),
+        add_artifact("artifacts/.."),
+        add_artifact("artifacts\\..\\outside.txt"),
+        add_artifact("artifacts/"),
+    ],
+)
+def test_unsafe_or_unreplayable_records_are_rejected(change) -> None:
+    assert contracts.finding_errors(with_change(change))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        add_step({"action": "goto", "url": "/cart?step=2#/review"}),
+        add_step({"action": "press", "key": "Tab"}),
+        add_step({"action": "wait", "ms": 500}),
+        add_artifact("artifacts/shots/v1..v2.png"),
+    ],
+)
+def test_safe_records_still_validate(change) -> None:
+    assert contracts.finding_errors(with_change(change)) == []
+
+
 def test_tester_block_cannot_hold_contact_details() -> None:
     record = load(ROOT / "contracts" / "examples" / "tester-session.json")
     for field in ("name", "email", "handle", "phone"):

@@ -51,7 +51,8 @@ The same barrier found twice must get the same id, on any machine. The id is
 values joined by newlines:
 
 1. `target.app`
-2. the path and query of `target.url`, without scheme, host or port
+2. the path, query and fragment of `target.url`, without scheme, host or port
+   (the fragment stays because single-page apps route with it, as in `/#/cart`)
 3. `state.steps` serialised as JSON with sorted keys and no spaces
 4. `element.selector`, or the empty string for a page-level finding
 5. `criterion.id`

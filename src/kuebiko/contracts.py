@@ -50,11 +50,16 @@ def ledger_sql() -> str:
 
 
 def page_of(url: str) -> str:
-    """Return the path and query of a URL, without scheme, host or port."""
+    """Return the path, query and fragment of a URL, without scheme, host or port.
+
+    The fragment stays because single-page apps route with it (`/#/cart`).
+    """
     parts = urlsplit(url)
     page = parts.path or "/"
     if parts.query:
         page += "?" + parts.query
+    if parts.fragment:
+        page += "#" + parts.fragment
     return page
 
 

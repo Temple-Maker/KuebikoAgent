@@ -47,7 +47,7 @@ CREATE TABLE findings (
   first_run_id    TEXT NOT NULL REFERENCES runs (run_id),
   last_run_id     TEXT NOT NULL REFERENCES runs (run_id),
   app             TEXT NOT NULL,
-  page            TEXT NOT NULL,      -- URL path and query, without host or port
+  page            TEXT NOT NULL,      -- URL path, query and fragment, without host or port
   selector        TEXT NOT NULL DEFAULT '',
   criterion_id    TEXT NOT NULL,
   criterion_level TEXT NOT NULL CHECK (criterion_level IN ('A', 'AA', 'AAA')),
