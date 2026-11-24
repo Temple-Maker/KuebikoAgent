@@ -1,0 +1,5 @@
+# The repository's Dockerfile, which builds the frontend and the Go binary. First load shows the installer.
+services:
+  app:
+    build: .
+    ports: ["127.0.0.1:8106:3000"]

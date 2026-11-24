@@ -1,0 +1,34 @@
+# Follows the repository's own docker-compose.yml (dev/docs/development.md) without mailhog or xdebug.
+# The node service builds the CSS and JS once; the app waits for it. Both write into the checkout under .corpus/.
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: bookstack-dev
+      MYSQL_USER: bookstack-test
+      MYSQL_PASSWORD: bookstack-test
+      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+    volumes: ["./dev/docker/init.db:/docker-entrypoint-initdb.d"]
+  node:
+    image: node:22-alpine
+    working_dir: /app
+    volumes: ["./:/app"]
+    entrypoint: ["sh", "-c", "npm ci && npm run build"]
+  app:
+    build: { context: ., dockerfile: dev/docker/Dockerfile }
+    depends_on:
+      node: { condition: service_completed_successfully }
+    environment:
+      APP_ENV: local
+      APP_KEY: kuebiko-local-only-not-a-secret!  # 32 characters; throwaway local instance
+      APP_URL: http://127.0.0.1:8104
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: bookstack-dev
+      DB_USERNAME: bookstack-test
+      DB_PASSWORD: bookstack-test
+      MAIL_DRIVER: log
+    ports: ["127.0.0.1:8104:80"]
+    volumes: ["./:/app"]
+    entrypoint: /app/dev/docker/entrypoint.app.sh
