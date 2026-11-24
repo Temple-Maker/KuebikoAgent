@@ -12,7 +12,7 @@ import pytest
 
 from kuebiko import cli
 from kuebiko.contracts import finding_errors
-from kuebiko.evals import act, instructions, scoring
+from kuebiko.evals import act, instructions, scoring, tools
 from kuebiko.evals import cli as eval_cli
 
 
@@ -99,12 +99,21 @@ def test_repository_thresholds_parse() -> None:
         eval_cli.load_floors("act-subset", kind)
 
 
-def test_budget_stops_before_passing_the_cap() -> None:
+def test_budget_reserves_the_worst_case_before_a_case_starts() -> None:
     budget = eval_cli.Budget(1.0)
-    budget.reserve()
-    budget.settle(0.6)
+    budget.reserve(0.5)
     with pytest.raises(eval_cli.BudgetExceeded):
-        budget.reserve()
+        budget.reserve(0.6)  # 0.5 in flight + 0.6 could pass 1.0
+    budget.settle(0.5, 0.1)
+    budget.reserve(0.6)  # 0.1 spent + 0.6
+    with pytest.raises(eval_cli.BudgetExceeded):
+        eval_cli.Budget(0.0).reserve(0.01)
+
+
+def test_worst_case_covers_a_full_output() -> None:
+    usage = SimpleNamespace(input_tokens=2000, output_tokens=instructions.MAX_TOKENS,
+                            cache_creation_input_tokens=0, cache_read_input_tokens=0)
+    assert instructions.worst_case_cost("claude-opus-5-5", "<p>x</p>") > instructions.cost_of("claude-opus-5-5", usage)
 
 
 # End to end, against a fake checkout built from the real subset file.
@@ -127,7 +136,10 @@ def fake_act(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 class FakeMessages:
+    calls = 0
+
     def create(self, **request):
+        FakeMessages.calls += 1
         page = request["messages"][0]["content"]
         failures = [{"criterion": "1.1.1", "level": "A", "selector": "img", "severity": "serious",
                      "summary": "The image has no text alternative."}] if "<img" in page else []
@@ -160,18 +172,33 @@ def test_instructions_baseline_end_to_end(fake_act: Path, tmp_path: Path, monkey
     assert json.loads((run_dir / "run.json").read_text())["kind"] == "eval"
 
 
-def test_max_cost_stops_with_exit_3(fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zero_budget_makes_no_model_call(fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(instructions, "make_client", lambda: SimpleNamespace(messages=FakeMessages()))
+    monkeypatch.setattr(FakeMessages, "calls", 0)
+    code = cli.main(["eval", "act-subset", "--baseline", "instructions", "--limit", "20",
+                     "--max-cost", "0", "--out", str(tmp_path), "--quiet"])
+    assert code == 3 and FakeMessages.calls == 0
+
+
+def test_budget_stop_keeps_finished_cases(fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(instructions, "make_client", lambda: SimpleNamespace(messages=FakeMessages()))
+    monkeypatch.setattr(FakeMessages, "calls", 0)
     monkeypatch.setattr(eval_cli, "WORKERS", {"instructions": 1})
     code = cli.main(["eval", "act-subset", "--baseline", "instructions", "--limit", "20",
-                     "--max-cost", "0.05", "--out", str(tmp_path), "--quiet"])
+                     "--max-cost", "0.5", "--out", str(tmp_path / "runs"), "--quiet"])
     assert code == 3
+    (run_dir,) = (tmp_path / "runs").iterdir()
+    assert not (run_dir / "eval.json").exists()  # a partial set is not a score
+    finished = [json.loads(line) for line in (run_dir / "cases.jsonl").read_text().splitlines()]
+    assert 0 < len(finished) == FakeMessages.calls < 20
+    summary = json.loads((run_dir / "run.json").read_text())
+    assert summary["cost_usd"] == pytest.approx(sum(c["cost_usd"] for c in finished)) and summary["cost_usd"] <= 0.5
 
 
 def test_scan_baseline_runs_the_scan_command(fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
-    def fake_run_command(command, url, case_dir, model):
+    def fake_run_command(command, url, case_dir, base_dir, model, max_cost):
         calls.append((command, url))
         with urllib.request.urlopen(url) as response:  # loopback only: the eval's own page server
             failing = b"<img" in response.read()
@@ -191,3 +218,55 @@ def test_unknown_suite_is_a_usage_error() -> None:
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["eval", "nope"])
     assert exit_info.value.code == 2
+
+
+# The scan and audit runner, with the subprocess faked.
+
+def fake_command(monkeypatch: pytest.MonkeyPatch, *, returncode: int, files: dict[str, str]) -> list[list[str]]:
+    argvs = []
+
+    def run(argv, **kwargs):
+        argvs.append(argv)
+        out = Path(argv[argv.index("--out") + 1]) / "run_20261124T000000Z_abcd"
+        (out / "artifacts").mkdir(parents=True)
+        for name, text in files.items():
+            (out / name).write_text(text, encoding="utf-8")
+        return SimpleNamespace(returncode=returncode, stderr="boom")
+
+    monkeypatch.setattr(tools.subprocess, "run", run)
+    return argvs
+
+
+def example_finding() -> dict:
+    record = json.loads((act.REPO_ROOT / "contracts" / "examples" / "rule-confirmed.json").read_text())
+    record["evidence"] = [{"kind": "screenshot", "path": "artifacts/shot.png"}]  # not part of the fingerprint
+    assert finding_errors(record) == []
+    return record
+
+
+def test_runner_rewrites_evidence_paths_to_the_eval_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_command(monkeypatch, returncode=0, files={
+        "findings.jsonl": json.dumps(example_finding()) + "\n", "run.json": json.dumps({"cost_usd": 0.25})})
+    case_dir = tmp_path / "artifacts" / "cases" / "r" / "t"
+    findings, cost = tools.run_command("scan", "http://127.0.0.1:1/x.html", case_dir, tmp_path)
+    path = findings[0]["evidence"][0]["path"]
+    assert path == "artifacts/cases/r/t/run_20261124T000000Z_abcd/artifacts/shot.png"
+    assert finding_errors(findings[0]) == [] and cost == 0.25
+
+
+@pytest.mark.parametrize("missing", ["findings.jsonl", "run.json"])
+def test_runner_rejects_a_run_without_its_contract_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                         missing: str) -> None:
+    files = {"findings.jsonl": "", "run.json": json.dumps({"cost_usd": 0.0})}
+    del files[missing]
+    fake_command(monkeypatch, returncode=0, files=files)
+    with pytest.raises(tools.CaseError, match=missing):
+        tools.run_command("scan", "http://127.0.0.1:1/x.html", tmp_path / "artifacts" / "c", tmp_path)
+
+
+def test_failed_audit_keeps_its_cost_and_gets_a_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    argvs = fake_command(monkeypatch, returncode=3, files={"run.json": json.dumps({"cost_usd": 0.42})})
+    with pytest.raises(tools.CaseError) as failure:
+        tools.run_command("audit", "http://127.0.0.1:1/x.html", tmp_path / "artifacts" / "c", tmp_path, "m", 0.05)
+    assert failure.value.cost_usd == 0.42
+    assert argvs[0][-4:] == ["--model", "m", "--max-cost", "0.050000"]

@@ -29,8 +29,13 @@ class NotImplementedTool(RuntimeError):
     """The command under test exits 4."""
 
 
-def run_command(command: str, url: str, case_dir: Path, model: str | None = None) -> tuple[list[dict], float]:
-    """Run one command on ``url`` and return its validated findings and its cost in USD."""
+def run_command(command: str, url: str, case_dir: Path, base_dir: Path, model: str | None = None,
+                max_cost: float | None = None) -> tuple[list[dict], float]:
+    """Run one command on ``url`` and return its validated findings and its cost in USD.
+
+    ``case_dir`` must sit under ``base_dir/artifacts/``: evidence paths in the returned
+    findings are rewritten to be relative to ``base_dir``, the eval's run directory.
+    """
     argv = [
         sys.executable, "-m", "kuebiko.cli", command, url,
         "--out", str(case_dir),
@@ -38,32 +43,50 @@ def run_command(command: str, url: str, case_dir: Path, model: str | None = None
         "--ledger", str(case_dir / "ledger.db"),
         "--quiet",
     ]
-    if model and command == "audit":
-        argv += ["--model", model]
+    if command == "audit":
+        argv += ["--model", model] if model else []
+        argv += ["--max-cost", f"{max_cost:.6f}"] if max_cost is not None else []
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=CASE_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as error:
-        raise CaseError(f"kuebiko {command} timed out after {CASE_TIMEOUT_SECONDS}s") from error
+        raise CaseError(f"kuebiko {command} timed out after {CASE_TIMEOUT_SECONDS}s", _cost(case_dir)) from error
     if proc.returncode == EXIT_NOT_IMPLEMENTED:
         raise NotImplementedTool(proc.stderr.strip() or f"kuebiko {command} exits 4")
     if proc.returncode not in (0, 1):  # 1 only means a --fail-on threshold was crossed
-        raise CaseError(f"kuebiko {command} exited {proc.returncode}: {proc.stderr.strip()[-500:]}")
+        raise CaseError(f"kuebiko {command} exited {proc.returncode}: {proc.stderr.strip()[-500:]}", _cost(case_dir))
+    run_dir = _run_dir(case_dir)
+    missing = [name for name in ("findings.jsonl", "run.json") if not (run_dir / name).is_file()]
+    if missing:
+        raise CaseError(f"kuebiko {command} wrote no {' or '.join(missing)} in {run_dir}", _cost(case_dir))
+    cost = _cost(case_dir)
+    prefix = run_dir.relative_to(base_dir).as_posix()
+    findings = []
+    findings_file = run_dir / "findings.jsonl"
+    for number, line in enumerate(findings_file.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        errors = finding_errors(record)
+        if errors:
+            raise CaseError(f"{findings_file}:{number} is not a valid finding: {errors[0]}", cost)
+        for item in record["evidence"]:
+            if "path" in item:
+                item["path"] = f"{prefix}/{item['path']}"
+        findings.append(record)
+    return findings, cost
+
+
+def _run_dir(case_dir: Path) -> Path:
     runs = sorted(case_dir.glob("run_*/"))
     if len(runs) != 1:
         raise CaseError(f"expected one run directory in {case_dir}, found {len(runs)}")
-    findings = []
-    findings_file = runs[0] / "findings.jsonl"
-    if findings_file.exists():
-        for number, line in enumerate(findings_file.read_text(encoding="utf-8").splitlines(), 1):
-            if not line.strip():
-                continue
-            record = json.loads(line)
-            errors = finding_errors(record)
-            if errors:
-                raise CaseError(f"{findings_file}:{number} is not a valid finding: {errors[0]}")
-            findings.append(record)
-    cost = 0.0
-    run_json = runs[0] / "run.json"
-    if run_json.exists():
-        cost = float(json.loads(run_json.read_text(encoding="utf-8")).get("cost_usd") or 0.0)
-    return findings, cost
+    return runs[0]
+
+
+def _cost(case_dir: Path) -> float:
+    """The cost the run recorded, or 0.0 when it recorded none, including after a failure."""
+    try:
+        summary = json.loads((_run_dir(case_dir) / "run.json").read_text(encoding="utf-8"))
+        return float(summary.get("cost_usd") or 0.0)
+    except (CaseError, OSError, ValueError):
+        return 0.0

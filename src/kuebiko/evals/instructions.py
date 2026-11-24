@@ -72,9 +72,41 @@ def cost_of(model: str, usage) -> float:
     ) / 1_000_000
 
 
+def worst_case_cost(model: str, html: str) -> float:
+    """An upper bound on one call's cost: every byte a token, every input token a cache write, full output."""
+    price_in, price_out, price_write, _ = PRICES[model]
+    text = INSTRUCTIONS.read_text(encoding="utf-8") + html
+    input_tokens = len(text.encode("utf-8")) + 200  # 200: the prompt's own words
+    return (input_tokens * max(price_in, price_write) + MAX_TOKENS * price_out) / 1_000_000
+
+
 def ask(client, model: str, html: str) -> tuple[list[dict], float]:
-    """Return the model's raw failures for one page and the call's cost in USD."""
-    response = client.messages.create(
+    """Return the model's raw failures for one page and the call's cost in USD.
+
+    A transient API failure that outlasts the SDK's retries fails this case only;
+    any other API error (bad key, unknown model) stops the eval.
+    """
+    try:
+        response = _create(client, model, html)
+    except _transient_errors() as error:
+        raise CaseError(f"model call failed after retries: {error}") from error
+    cost = cost_of(model, response.usage)
+    if response.stop_reason != "end_turn":
+        raise CaseError(f"model stopped with {response.stop_reason} (request {response._request_id})", cost)
+    text = next(b.text for b in response.content if b.type == "text")
+    return json.loads(text)["failures"], cost
+
+
+def _transient_errors() -> tuple[type[Exception], ...]:
+    try:
+        import anthropic
+    except ModuleNotFoundError:  # only a fake client can be in use
+        return ()
+    return (anthropic.APIConnectionError, anthropic.RateLimitError, anthropic.InternalServerError)
+
+
+def _create(client, model: str, html: str):
+    return client.messages.create(
         model=model,
         max_tokens=MAX_TOKENS,
         system=[{"type": "text", "text": INSTRUCTIONS.read_text(encoding="utf-8"), "cache_control": {"type": "ephemeral"}}],
@@ -84,11 +116,6 @@ def ask(client, model: str, html: str) -> tuple[list[dict], float]:
         }],
         output_config={"effort": EFFORT, "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
     )
-    cost = cost_of(model, response.usage)
-    if response.stop_reason != "end_turn":
-        raise CaseError(f"model stopped with {response.stop_reason} (request {response._request_id})", cost)
-    text = next(b.text for b in response.content if b.type == "text")
-    return json.loads(text)["failures"], cost
 
 
 def to_findings(failures: list[dict], *, run_id: str, url: str, app: str, repo: str, commit: str, model: str) -> list[dict]:

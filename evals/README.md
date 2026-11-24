@@ -41,10 +41,20 @@ rule maps to. Choices made here:
 
 Each run directory also holds `cases.jsonl` (one line per case: expected,
 criteria, reported, flagged, cost, error), `findings.jsonl` and `run.json`.
+Scan and audit runs for each page sit under `artifacts/cases/RULE/CASE/`, and
+evidence paths in the combined `findings.jsonl` are rewritten to point there.
+A scan or audit run that writes no `findings.jsonl` or `run.json` is a failed
+case, not an empty one.
 
 ## Cost
 
-`--max-cost` (default 15 USD) stops a run before spend would pass it. The first
+`--max-cost` (default 15 USD) is a hard cap. Before a case starts it reserves its
+worst-case cost: for the model baseline, every input byte as a token plus a full
+16,000-token output; for `kuebiko audit`, an even share of the cap, passed on as
+the audit's own `--max-cost`. A case whose reserve would pass the cap never
+starts. A run that stops early exits 3 and keeps `cases.jsonl`, `findings.jsonl`
+and `run.json` for the finished cases, but writes no `eval.json`, because
+numbers over part of the suite are not a score. The first
 full instructions run on `claude-opus-5-5` cost 1.53 USD and took 120 s
 (24 November 2026). The monthly budget for model spend is 100 to 150 USD.
 
