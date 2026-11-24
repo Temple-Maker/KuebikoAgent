@@ -17,6 +17,9 @@ dependencies = [
 dev = [
     "pytest>=8",
 ]
+eval = [
+    "anthropic>=2.14",
+]
 
 [project.scripts]
 kuebiko = "kuebiko.cli:main"
@@ -25,4 +28,4 @@ kuebiko = "kuebiko.cli:main"
 packages = ["src/kuebiko"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "evals/tests"]
