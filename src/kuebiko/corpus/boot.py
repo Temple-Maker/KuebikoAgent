@@ -13,11 +13,12 @@ and torn down with its volumes afterwards so every boot starts from the same sta
 from __future__ import annotations
 
 import argparse
+import fcntl
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
-import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -39,22 +40,38 @@ def _compose(repo: str, dest: Path) -> list[str]:
     path = corpus.checkout_path(item, dest)
     if corpus.head_commit(path) != item.commit:
         raise RuntimeError(f"{repo} is not checked out at its pinned commit; run kuebiko corpus fetch")
-    project = "kuebiko-" + repo.replace("/", "-").lower()
     compose_file = corpus.repo_root() / "corpus" / recipe["compose"]
-    return ["docker", "compose", "-p", project, "-f", str(compose_file), "--project-directory", str(path)]
+    return ["docker", "compose", "-p", _project(repo), "-f", str(compose_file), "--project-directory", str(path)]
+
+
+def _project(repo: str) -> str:
+    return "kuebiko-" + repo.replace("/", "-").lower()
+
+
+@contextmanager
+def _one_at_a_time(repo: str) -> Iterator[None]:
+    """Hold a machine-wide lock for ``repo``.
+
+    The project name and port are the same in every worktree, so a second boot of
+    the same app would rebuild the first one's container and delete it when done.
+    A second caller waits here instead.
+    """
+    with open(Path(tempfile.gettempdir()) / f"{_project(repo)}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)  # released when the file closes
+        yield
 
 
 def wait_for(url: str, timeout_s: float) -> int:
-    """Poll ``url`` until it answers below 500. Returns the status; raises TimeoutError."""
+    """Poll ``url`` until it answers with success (redirects followed). Returns the status; raises TimeoutError.
+
+    An error page (403, 404, 500) is not success: an empty build can still serve one.
+    """
     deadline = time.monotonic() + timeout_s
     while True:
         try:
             with urllib.request.urlopen(url, timeout=5) as response:
                 return response.status
-        except urllib.error.HTTPError as error:
-            if error.code < 500:
-                return error.code
-        except (urllib.error.URLError, OSError):
+        except OSError:  # refused, timed out, or an HTTP error status
             pass
         if time.monotonic() > deadline:
             raise TimeoutError(f"{url} did not answer within {timeout_s:.0f}s")
@@ -81,10 +98,11 @@ def down(repo: str, dest: Path | None = None) -> None:
 @contextmanager
 def boot(repo: str, dest: Path | None = None, timeout_s: float = 300) -> Iterator[str]:
     """Start ``repo``, yield its URL, then stop it and delete its volumes."""
-    try:
-        yield up(repo, dest, timeout_s)
-    finally:
-        down(repo, dest)
+    with _one_at_a_time(repo):
+        try:
+            yield up(repo, dest, timeout_s)
+        finally:
+            down(repo, dest)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -96,14 +114,15 @@ def main(argv: list[str] | None = None) -> int:
     results = {}
     for repo in args.repos or list(recipes()):
         started = time.monotonic()
-        try:
-            url = up(repo, timeout_s=args.timeout)
-            results[repo] = f"boots   {url} ({time.monotonic() - started:.0f}s)"
-        except Exception as error:  # report every app, then carry on with the next
-            results[repo] = f"FAILED  {error}"
-        finally:
-            if not args.keep:
-                down(repo)
+        with _one_at_a_time(repo):
+            try:
+                url = up(repo, timeout_s=args.timeout)
+                results[repo] = f"boots   {url} ({time.monotonic() - started:.0f}s)"
+            except Exception as error:  # report every app, then carry on with the next
+                results[repo] = f"FAILED  {error}"
+            finally:
+                if not args.keep:
+                    down(repo)
         print(f"{repo}: {results[repo]}", flush=True)
     print("\n".join(f"{repo:<26} {result}" for repo, result in results.items()))
     return 0 if all(r.startswith("boots") for r in results.values()) else 3

@@ -110,7 +110,7 @@ def test_every_core_app_has_a_local_only_boot_recipe() -> None:
     assert len(set(ports)) == len(ports)
 
 
-def test_wait_for_counts_any_answer_below_500(tmp_path: Path) -> None:
+def test_wait_for_needs_success_not_an_error_page(tmp_path: Path) -> None:
     import functools
     import http.server
     import socket
@@ -118,12 +118,16 @@ def test_wait_for_counts_any_answer_below_500(tmp_path: Path) -> None:
 
     from kuebiko.corpus import boot
 
+    (tmp_path / "index.html").write_text("ok")
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(tmp_path))
     handler.log_message = lambda *a: None
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
     try:
-        assert boot.wait_for(f"http://127.0.0.1:{server.server_port}/missing", 5) == 404
+        assert boot.wait_for(f"{base}/", 5) == 200
+        with pytest.raises(TimeoutError):
+            boot.wait_for(f"{base}/missing", 0)  # a 404 is not "booted"
     finally:
         server.shutdown()
     with socket.socket() as s:
@@ -131,3 +135,32 @@ def test_wait_for_counts_any_answer_below_500(tmp_path: Path) -> None:
         closed = s.getsockname()[1]
     with pytest.raises(TimeoutError):
         boot.wait_for(f"http://127.0.0.1:{closed}/", 0)
+
+
+def test_two_boots_of_one_app_never_overlap(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    import time
+
+    from kuebiko.corpus import boot
+
+    running, overlaps = [], []
+
+    def fake_up(repo, dest=None, timeout_s=300):
+        if running:
+            overlaps.append(repo)
+        running.append(repo)
+        return "http://127.0.0.1:1/"
+
+    monkeypatch.setattr(boot, "up", fake_up)
+    monkeypatch.setattr(boot, "down", lambda repo, dest=None: running.remove(repo))
+
+    def use() -> None:
+        with boot.boot("acme/lock-test"):
+            time.sleep(0.2)
+
+    threads = [threading.Thread(target=use) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert overlaps == [] and running == []
