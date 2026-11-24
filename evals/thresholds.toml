@@ -1,0 +1,21 @@
+# Floors for `kuebiko eval`. One table per suite and tool: `scan` and
+# `instructions` are the baselines, `audit` is `kuebiko audit` (no --baseline).
+#
+#   min_recall                lowest recall that passes
+#   max_false_discovery_rate  highest false-discovery rate that passes
+#
+# A missed floor makes the command exit 1. Runs with --limit are not checked.
+# Raise a floor when a measured number goes up; never lower one to get a green
+# build (AGENTS.md, hard rule 9).
+
+[act-subset.scan]
+# No floor yet: the scan (workstream 2) has not produced a number on this
+# suite. Set both keys from the first full run, minus noise.
+
+[act-subset.instructions]
+# No floor: a reference point, not a gate, and too costly to run in CI.
+
+[act-subset.audit]
+# AGENTS.md, workstream 3: false-discovery rate under 10%. Its recall floor is
+# the scan baseline's recall, to be added once that is measured.
+max_false_discovery_rate = 0.10
