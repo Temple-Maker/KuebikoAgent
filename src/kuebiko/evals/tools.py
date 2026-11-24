@@ -65,7 +65,10 @@ def run_command(command: str, url: str, case_dir: Path, base_dir: Path, model: s
     for number, line in enumerate(findings_file.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
-        record = json.loads(line)
+        try:
+            record = json.loads(line)
+        except ValueError as error:
+            raise CaseError(f"{findings_file}:{number} is not JSON: {error}", cost) from error
         errors = finding_errors(record)
         if errors:
             raise CaseError(f"{findings_file}:{number} is not a valid finding: {errors[0]}", cost)

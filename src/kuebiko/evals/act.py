@@ -65,6 +65,14 @@ def checkout() -> Path:
     ).stdout.strip()
     if head != pinned_commit():
         raise CorpusError(f"{path} is at {head or 'an unknown commit'}, expected {pinned_commit()}")
+    edited = subprocess.run(
+        ["git", "-C", str(path), "status", "--porcelain", "--untracked-files=no", "--", str(ASSETS)],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if edited:
+        first = edited.splitlines()[0]
+        raise CorpusError(f"{path} has local edits, so it is not the pinned commit (first: {first}). "
+                          "Restore it with `git checkout -- .` inside the checkout.")
     return path
 
 

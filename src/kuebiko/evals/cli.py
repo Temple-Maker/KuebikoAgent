@@ -50,22 +50,31 @@ class Skipped(Exception):
 
 
 class Budget:
-    """Each case reserves its worst-case cost before it starts; a case whose reserve would pass the cap never starts."""
+    """Each case reserves its worst-case cost before it starts; a case whose reserve would pass the cap never starts.
+
+    A case that does not fit waits while other cases run, since they usually cost far
+    less than they reserved. It gives up only when nothing is left running.
+    """
 
     def __init__(self, cap: float):
-        self.cap, self.spent, self.reserved = cap, 0.0, 0.0
-        self._lock = threading.Lock()
+        self.cap, self.spent, self.reserved, self.running = cap, 0.0, 0.0, 0
+        self._settled = threading.Condition()
 
     def reserve(self, worst_case: float) -> None:
-        with self._lock:
-            if self.spent + self.reserved + worst_case > self.cap:
-                raise BudgetExceeded(f"the next case could pass --max-cost {self.cap:.2f} USD (spent {self.spent:.2f})")
+        with self._settled:
+            while self.spent + self.reserved + worst_case > self.cap:
+                if self.running == 0:  # a count, not `reserved == 0`, which float sums may never reach
+                    raise BudgetExceeded(f"the next case could pass --max-cost {self.cap:.2f} USD (spent {self.spent:.2f})")
+                self._settled.wait()
             self.reserved += worst_case
+            self.running += 1
 
     def settle(self, worst_case: float, cost: float) -> None:
-        with self._lock:
+        with self._settled:
             self.reserved -= worst_case
+            self.running -= 1
             self.spent += cost
+            self._settled.notify_all()
 
 
 def load_floors(suite: str, kind: str, path: Path = THRESHOLDS) -> dict[str, float]:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import json
+import subprocess
+import threading
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -99,15 +101,28 @@ def test_repository_thresholds_parse() -> None:
         eval_cli.load_floors("act-subset", kind)
 
 
-def test_budget_reserves_the_worst_case_before_a_case_starts() -> None:
+def test_budget_refuses_a_case_that_could_pass_the_cap_when_nothing_runs() -> None:
     budget = eval_cli.Budget(1.0)
+    budget.reserve(0.6)
+    budget.settle(0.6, 0.5)
+    with pytest.raises(eval_cli.BudgetExceeded):
+        budget.reserve(0.6)  # 0.5 spent + 0.6 could pass 1.0
     budget.reserve(0.5)
     with pytest.raises(eval_cli.BudgetExceeded):
-        budget.reserve(0.6)  # 0.5 in flight + 0.6 could pass 1.0
-    budget.settle(0.5, 0.1)
-    budget.reserve(0.6)  # 0.1 spent + 0.6
-    with pytest.raises(eval_cli.BudgetExceeded):
         eval_cli.Budget(0.0).reserve(0.01)
+
+
+def test_budget_waits_for_running_cases_to_settle() -> None:
+    budget = eval_cli.Budget(1.0)
+    budget.reserve(0.6)
+    started = threading.Event()
+    waiter = threading.Thread(target=lambda: (budget.reserve(0.6), started.set()))
+    waiter.start()
+    assert not started.wait(0.2)  # 0.6 reserved + 0.6 could pass 1.0, so it waits
+    budget.settle(0.6, 0.1)  # the running case cost far less than it reserved
+    assert started.wait(2)
+    waiter.join(2)
+    assert budget.running == 1 and budget.spent == pytest.approx(0.1)
 
 
 def test_worst_case_covers_a_full_output() -> None:
@@ -178,6 +193,17 @@ def test_zero_budget_makes_no_model_call(fake_act: Path, tmp_path: Path, monkeyp
     code = cli.main(["eval", "act-subset", "--baseline", "instructions", "--limit", "20",
                      "--max-cost", "0", "--out", str(tmp_path), "--quiet"])
     assert code == 3 and FakeMessages.calls == 0
+
+
+def test_a_small_cap_still_runs_every_case_that_fits(fake_act: Path, tmp_path: Path,
+                                                     monkeypatch: pytest.MonkeyPatch) -> None:
+    # Codex's case: 8 workers each reserve about 0.33 USD, but 20 cases cost 0.28 USD in all.
+    monkeypatch.setattr(instructions, "make_client", lambda: SimpleNamespace(messages=FakeMessages()))
+    code = cli.main(["eval", "act-subset", "--baseline", "instructions", "--limit", "20",
+                     "--max-cost", "1", "--out", str(tmp_path / "runs"), "--quiet"])
+    assert code == 0
+    (run_dir,) = (tmp_path / "runs").iterdir()
+    assert json.loads((run_dir / "eval.json").read_text())["cases"] == 20
 
 
 def test_budget_stop_keeps_finished_cases(fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,3 +296,29 @@ def test_failed_audit_keeps_its_cost_and_gets_a_cap(tmp_path: Path, monkeypatch:
         tools.run_command("audit", "http://127.0.0.1:1/x.html", tmp_path / "artifacts" / "c", tmp_path, "m", 0.05)
     assert failure.value.cost_usd == 0.42
     assert argvs[0][-4:] == ["--model", "m", "--max-cost", "0.050000"]
+
+
+def test_runner_turns_a_broken_findings_file_into_one_failed_case(tmp_path: Path,
+                                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_command(monkeypatch, returncode=0, files={"findings.jsonl": "{not json\n", "run.json": json.dumps({"cost_usd": 0.3})})
+    with pytest.raises(tools.CaseError, match="not JSON") as failure:
+        tools.run_command("audit", "http://127.0.0.1:1/x.html", tmp_path / "artifacts" / "c", tmp_path)
+    assert failure.value.cost_usd == 0.3
+
+
+def test_checkout_refuses_local_edits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = tmp_path / "w3c" / "wcag-act-rules"
+    data = repo / act.ASSETS / "testcases.json"
+    data.parent.mkdir(parents=True)
+    data.write_text("{}", encoding="utf-8")
+    git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "x"], check=True)
+    head = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    monkeypatch.setenv("KUEBIKO_ACT_DIR", str(repo))
+    monkeypatch.setattr(act, "pinned_commit", lambda: head)
+    assert act.checkout() == repo
+    data.write_text('{"edited": true}', encoding="utf-8")
+    with pytest.raises(act.CorpusError, match="local edits"):
+        act.checkout()
