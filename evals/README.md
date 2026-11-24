@@ -44,10 +44,9 @@ criteria, reported, flagged, cost, error), `findings.jsonl` and `run.json`.
 
 ## Cost
 
-`--max-cost` (default 15 USD) stops a run before spend would pass it. One full
-instructions run is estimated at about 10 USD on `claude-opus-5-5` (300 small
-pages); measure it on the first run and update this line. The monthly budget
-for model spend is 100 to 150 USD.
+`--max-cost` (default 15 USD) stops a run before spend would pass it. The first
+full instructions run on `claude-opus-5-5` cost 1.53 USD and took 120 s
+(24 November 2026). The monthly budget for model spend is 100 to 150 USD.
 
 ## Floors
 
