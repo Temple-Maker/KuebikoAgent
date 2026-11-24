@@ -112,6 +112,100 @@ def test_tester_block_cannot_hold_contact_details() -> None:
         assert contracts.finding_errors(with_field), field
 
 
+def record_with_tester_text(**text: str) -> dict:
+    """The tester-session example with its setup, task or a comment replaced."""
+    record = load(ROOT / "contracts" / "examples" / "tester-session.json")
+    if "setup" in text:
+        record["tester"]["setup"] = [text["setup"]]
+    if "task" in text:
+        record["tester"]["task"] = text["task"]
+    if "comment" in text:
+        record["evidence"].append({"kind": "tester-comment", "text": text["comment"]})
+    return record  # tester text is not part of the fingerprint, so the id still holds
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        {"comment": "Stuck here. Email me at jane.doe@example.com"},
+        {"comment": "Call 617-555-0100 if you need more"},
+        {"comment": "WhatsApp +44 20 7946 0958"},
+        {"setup": "JAWS on Windows, reach me at j@example.org"},
+        {"task": "Book an appointment, then text (617) 555 0100"},
+    ],
+)
+def test_contact_details_in_tester_text_are_rejected(text: dict) -> None:
+    assert contracts.finding_errors(record_with_tester_text(**text))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        {"setup": "NVDA 2026.3.1 on Windows 11"},
+        {"setup": "400% zoom"},
+        {"comment": "Took 3 tries and about 45 seconds to find the submit button"},
+        {"task": "Book an appointment for 10:30 on 2026-12-01"},
+    ],
+)
+def test_ordinary_tester_text_still_validates(text: dict) -> None:
+    assert contracts.finding_errors(record_with_tester_text(**text)) == []
+
+
+@pytest.fixture
+def ledger():
+    """An empty ledger holding one run, one finding and two sessions, one synthetic."""
+    connection = sqlite3.connect(":memory:")
+    connection.executescript(contracts.ledger_sql())
+    connection.executescript(
+        """
+        INSERT INTO runs (run_id, kind, app, tool_version, started_at)
+          VALUES ('run_test01', 'scan', 'example/shop', '0.0.1', '2026-11-21T10:15:00Z');
+        INSERT INTO findings (id, first_run_id, last_run_id, app, page, criterion_id, criterion_level,
+          check_id, source, outcome, confidence, severity, summary, record_json, created_at, updated_at)
+          VALUES ('fnd_0123456789abcdef', 'run_test01', 'run_test01', 'example/shop', '/', '1.1.1', 'A',
+          'axe:image-alt', 'rule', 'failed', 'confirmed', 'serious', 'Image has no text alternative.',
+          '{}', '2026-11-21T10:15:00Z', '2026-11-21T10:15:00Z');
+        INSERT INTO sessions (session_code, app, task, setup_json, result, synthetic, consent, created_at)
+          VALUES ('ses_realtester1', 'example/shop', 'Pay', '["NVDA on Windows"]', 'completed', 0, 1,
+          '2026-11-21T11:00:00Z'),
+                 ('ses_scripted001', 'example/shop', 'Pay', '["keyboard only"]', 'completed', 1, 1,
+          '2026-11-21T11:00:00Z');
+        """
+    )
+    yield connection
+    connection.close()
+
+
+def add_verification(connection: sqlite3.Connection, kind: str, session_code: str | None) -> None:
+    connection.execute(
+        "INSERT INTO verifications (finding_id, kind, result, session_code, created_at) "
+        "VALUES ('fnd_0123456789abcdef', ?, 'pass', ?, '2026-11-21T12:00:00Z')",
+        (kind, session_code),
+    )
+
+
+@pytest.mark.parametrize("session_code", [None, "ses_scripted001"])
+def test_tester_verification_needs_a_real_session(session_code: str | None, ledger: sqlite3.Connection) -> None:
+    connection = ledger
+    with pytest.raises(sqlite3.IntegrityError):
+        add_verification(connection, "tester-session", session_code)
+
+
+def test_tester_verification_cannot_be_switched_to_a_synthetic_session(ledger: sqlite3.Connection) -> None:
+    connection = ledger
+    add_verification(connection, "tester-session", "ses_realtester1")
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute("UPDATE verifications SET session_code = 'ses_scripted001'")
+
+
+def test_real_and_synthetic_sessions_are_recorded_as_their_own_kind(ledger: sqlite3.Connection) -> None:
+    connection = ledger
+    add_verification(connection, "tester-session", "ses_realtester1")
+    add_verification(connection, "scripted-session", "ses_scripted001")
+    add_verification(connection, "rescan", None)
+    assert connection.execute("SELECT COUNT(*) FROM verifications").fetchone()[0] == 3
+
+
 def test_ledger_loads_and_enforces_status() -> None:
     connection = sqlite3.connect(":memory:")
     connection.executescript(contracts.ledger_sql())
