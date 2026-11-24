@@ -107,7 +107,26 @@ CREATE TABLE verifications (
   result       TEXT NOT NULL CHECK (result IN ('pass', 'fail')),
   run_id       TEXT REFERENCES runs (run_id),
   session_code TEXT REFERENCES sessions (session_code),
-  created_at   TEXT NOT NULL
+  created_at   TEXT NOT NULL,
+  CHECK (kind <> 'tester-session' OR session_code IS NOT NULL)
 );
 
 CREATE INDEX verifications_by_finding ON verifications (finding_id);
+
+-- A scripted or self-run session is synthetic and never counts as a tester
+-- (AGENTS.md rule 8), so it cannot back a 'tester-session' verification.
+CREATE TRIGGER verifications_tester_not_synthetic_insert
+BEFORE INSERT ON verifications
+WHEN NEW.kind = 'tester-session'
+  AND (SELECT synthetic FROM sessions WHERE session_code = NEW.session_code) = 1
+BEGIN
+  SELECT RAISE(ABORT, 'a synthetic session cannot be a tester-session verification');
+END;
+
+CREATE TRIGGER verifications_tester_not_synthetic_update
+BEFORE UPDATE OF kind, session_code ON verifications
+WHEN NEW.kind = 'tester-session'
+  AND (SELECT synthetic FROM sessions WHERE session_code = NEW.session_code) = 1
+BEGIN
+  SELECT RAISE(ABORT, 'a synthetic session cannot be a tester-session verification');
+END;

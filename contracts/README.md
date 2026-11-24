@@ -64,10 +64,19 @@ write another one.
 Two findings from different checks about the same element get different ids.
 Group them by app, page, selector and criterion when you need one row per place.
 
+### Testers stay anonymous
+
+The schema has no field for a tester's name or contact details. On top of that,
+`kuebiko.contracts.finding_errors` rejects a record when `tester.setup`,
+`tester.task` or the text of `tester-comment` evidence contains an email address
+or a phone number of ten or more digits. Names in free text cannot be caught
+this way, so whatever imports a session must still remove them.
+
 ## The ledger in one paragraph
 
 `runs` records each scan, audit, eval or verification. `findings` holds the
 latest record for each id and its status. `fixes` links a finding to a branch
 and pull request. `verifications` records every re-test. `sessions` holds
 tester sessions with an anonymous code and no contact details. The status rules
-are written at the top of `ledger.sql`.
+are written at the top of `ledger.sql`. A `tester-session` verification must
+name its session, and the ledger rejects it when that session is synthetic.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,10 @@ from urllib.parse import urlsplit
 from jsonschema import Draft202012Validator
 
 SCHEMA_VERSION = "0.1"
+
+# An email address, or a phone number of ten or more digits. Ten keeps version
+# numbers such as "NVDA 2026.3.1" out. Names cannot be caught this way.
+_CONTACT = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|\+?(?:\d[\s().-]{0,2}){9,}\d")
 
 
 def contracts_dir() -> Path:
@@ -89,15 +94,37 @@ def finding_id(record: dict[str, Any]) -> str:
 def finding_errors(record: Any) -> list[str]:
     """Return every reason a record is not a valid finding. Empty means valid.
 
-    Checks the JSON Schema and that ``id`` matches the fingerprint.
+    Checks the JSON Schema, that tester text holds no contact details, and that
+    ``id`` matches the fingerprint.
     """
     errors = [
         f"{'/'.join(str(p) for p in error.absolute_path) or '(record)'}: {error.message}"
         for error in sorted(_finding_validator().iter_errors(record), key=lambda e: list(e.absolute_path))
     ]
-    if not errors and record["id"] != finding_id(record):
+    if errors:
+        return errors
+    errors += _contact_errors(record)
+    if record["id"] != finding_id(record):
         errors.append(f"id: expected {finding_id(record)}, the fingerprint of this record")
     return errors
+
+
+def _contact_errors(record: dict[str, Any]) -> list[str]:
+    """Flag contact details in text a tester writes (AGENTS.md rule 7)."""
+    texts = []
+    if tester := record.get("tester"):
+        texts += [(f"tester/setup/{i}", text) for i, text in enumerate(tester["setup"])]
+        texts.append(("tester/task", tester["task"]))
+    texts += [
+        (f"evidence/{i}/text", item["text"])
+        for i, item in enumerate(record["evidence"])
+        if item["kind"] == "tester-comment" and "text" in item
+    ]
+    return [
+        f"{path}: looks like an email address or phone number; testers stay anonymous"
+        for path, text in texts
+        if _CONTACT.search(text)
+    ]
 
 
 def validate_finding(record: Any) -> None:
