@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1",
+  "id": "fnd_0000000000000000",
+  "run_id": "run_20261121T101500Z_a1b2",
+  "created_at": "2026-11-21T10:15:42Z",
+  "target": {
+    "app": "example/shop",
+    "url": "http://localhost:8080/checkout",
+    "repo": null,
+    "commit": null
+  },
+  "state": {
+    "steps": [],
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "description": "Checkout page on load"
+  },
+  "element": {
+    "selector": "form#payment > button.icon-only",
+    "html": "<button class=\"icon-only\" type=\"submit\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"></svg></button>",
+    "role": "button",
+    "name": "",
+    "source_hint": {
+      "file": "src/components/PayButton.jsx",
+      "line": 12,
+      "component": "PayButton"
+    }
+  },
+  "criterion": {
+    "standard": "WCAG",
+    "version": "2.2",
+    "id": "4.1.2",
+    "level": "A"
+  },
+  "check": {
+    "id": "axe:button-name",
+    "source": "rule",
+    "tool": "axe-core",
+    "tool_version": "4.10.0",
+    "act_rule": "97a4e1"
+  },
+  "outcome": "failed",
+  "confidence": "confirmed",
+  "severity": "blocker",
+  "summary": "The pay button has no accessible name, so a screen reader announces only \"button\".",
+  "evidence": [
+    {
+      "kind": "dom",
+      "text": "<button class=\"icon-only\" type=\"submit\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"></svg></button>"
+    },
+    {
+      "kind": "sr-transcript",
+      "text": "button"
+    }
+  ],
+  "remediation_hint": "Give the button visible text, or an aria-label that says what it does."
+}

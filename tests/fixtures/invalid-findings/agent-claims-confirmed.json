@@ -1,0 +1,62 @@
+{
+  "schema_version": "0.1",
+  "id": "fnd_5b29995fd7631476",
+  "run_id": "run_20261121T101500Z_a1b2",
+  "created_at": "2026-11-21T10:17:03Z",
+  "target": {
+    "app": "example/shop",
+    "url": "http://localhost:8080/checkout",
+    "repo": null,
+    "commit": null
+  },
+  "state": {
+    "steps": [
+      {
+        "action": "click",
+        "selector": "button#open-coupon"
+      }
+    ],
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "description": "Coupon dialog open"
+  },
+  "element": {
+    "selector": "div#coupon-dialog",
+    "html": "<div id=\"coupon-dialog\" class=\"modal open\"><input id=\"coupon\"><button>Apply</button></div>",
+    "role": "generic",
+    "name": ""
+  },
+  "criterion": {
+    "standard": "WCAG",
+    "version": "2.2",
+    "id": "2.4.3",
+    "level": "A"
+  },
+  "check": {
+    "id": "kuebiko:focus-order",
+    "source": "agent",
+    "tool": "kuebiko",
+    "tool_version": "0.0.1",
+    "model": "example-model"
+  },
+  "outcome": "failed",
+  "confidence": "confirmed",
+  "severity": "serious",
+  "summary": "Opening the coupon dialog leaves focus on the page behind it, so keyboard users tab through hidden content first.",
+  "evidence": [
+    {
+      "kind": "keyboard-trace",
+      "data": {
+        "focus_after_open": "button#open-coupon",
+        "tabs_to_reach_dialog": 14
+      }
+    },
+    {
+      "kind": "screenshot",
+      "path": "artifacts/coupon-dialog-focus.png"
+    }
+  ],
+  "remediation_hint": "Move focus into the dialog when it opens and return it to the trigger when it closes."
+}

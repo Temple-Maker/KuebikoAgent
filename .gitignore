@@ -221,3 +221,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# KuebikoAgent
+.corpus/
+runs/
+kuebiko.db
+kuebiko.db-*
+.claude/worktrees/
+node_modules/
