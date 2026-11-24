@@ -18,7 +18,20 @@ def test_no_command_is_a_usage_error() -> None:
     assert cli.main([]) == cli.EXIT_USAGE
 
 
-@pytest.mark.parametrize("rest", [[], ["anything", "--flag"], ["--json"], ["--ledger", "x"], ["x", "--json"]])
+def test_missing_module_inside_a_command_is_an_error(tmp_path, monkeypatch) -> None:
+    # fix_cli.py exists but imports a sibling module that does not.
+    package = tmp_path / "fakecmd"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "fix_cli.py").write_text("import fakecmd.fix\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with pytest.raises(ModuleNotFoundError):
+        cli._load("fakecmd.fix_cli")
+    assert cli._load("fakecmd.verify_cli") is None
+    assert cli._load("nopackage.cli") is None
+
+
+@pytest.mark.parametrize("rest",[[], ["anything", "--flag"], ["--json"], ["--ledger", "x"], ["x", "--json"]])
 @pytest.mark.parametrize("command", sorted(cli.COMMANDS))
 def test_unwritten_commands_exit_4(command: str, rest: list[str], capsys: pytest.CaptureFixture[str]) -> None:
     if cli._load(cli.COMMANDS[command][0]) is not None:

@@ -45,7 +45,8 @@ def _load(module_name: str):
     except ModuleNotFoundError as error:
         # Only a missing command module (or its package) means "not written yet".
         # A missing dependency inside an existing module is a real error.
-        if error.name and module_name.startswith(error.name):
+        # Compare whole dotted names, so a missing `x.fix` does not match `x.fix_cli`.
+        if error.name and (module_name + ".").startswith(error.name + "."):
             return None
         raise
 
