@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kuebiko import cli, contracts  # noqa: E402
+from kuebiko import cli, contracts, corpus  # noqa: E402
 
 EXPECTED_TABLES = {"schema_meta", "runs", "findings", "fixes", "sessions", "verifications"}
 TIERS = {
@@ -116,15 +116,13 @@ def check_manifest() -> None:
         rows = list(reader)
     repos = [row["repo"] for row in rows]
     check(len(repos) == len(set(repos)), "manifest.csv lists a repository twice")
+    error = None
+    try:
+        corpus.load_manifest(path)  # the same repo and commit rule that kuebiko corpus fetch applies
+    except ValueError as raised:
+        error = raised
+    check(error is None, str(error))
     for row in rows:
-        check(
-            re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", row["repo"]) is not None,
-            f"manifest.csv: {row['repo']!r} is not owner/name",
-        )
-        check(
-            re.fullmatch(r"[0-9a-f]{40}", row["commit"]) is not None,
-            f"manifest.csv: {row['repo']} is not pinned to a full commit hash",
-        )
         check(row["tier"] in TIERS, f"manifest.csv: {row['repo']} has unknown tier {row['tier']!r}")
     check(
         sum(row["tier"] == "D-core" for row in rows) == 6,
