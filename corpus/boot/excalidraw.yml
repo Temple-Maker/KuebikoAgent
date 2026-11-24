@@ -1,0 +1,5 @@
+# Production build served by nginx, from the repository's own Dockerfile.
+services:
+  app:
+    build: .
+    ports: ["127.0.0.1:8102:80"]
