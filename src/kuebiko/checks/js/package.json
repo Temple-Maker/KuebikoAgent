@@ -1,0 +1,10 @@
+{
+  "name": "kuebiko-checks-js",
+  "private": true,
+  "description": "In-page scripts for kuebiko scan. Python reads the files below from node_modules; there is no build step.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@guidepup/virtual-screen-reader": "0.33.0",
+    "axe-core": "4.14.1"
+  }
+}
