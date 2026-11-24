@@ -1,0 +1,28 @@
+# How to boot each D-core app from its pinned checkout in .corpus/.
+# `compose` is relative to this file and runs with the checkout as its project directory.
+# Try one with: python -m kuebiko.corpus.boot REPO
+# Which ones actually boot is recorded in corpus/README.md.
+
+["actualbudget/actual"]
+compose = "boot/actual.yml"
+url = "http://127.0.0.1:8101/"
+
+["excalidraw/excalidraw"]
+compose = "boot/excalidraw.yml"
+url = "http://127.0.0.1:8102/"
+
+["louislam/uptime-kuma"]
+compose = "boot/uptime-kuma.yml"
+url = "http://127.0.0.1:8103/"
+
+["BookStackApp/BookStack"]
+compose = "boot/bookstack.yml"
+url = "http://127.0.0.1:8104/"
+
+["kanboard/kanboard"]
+compose = "boot/kanboard.yml"
+url = "http://127.0.0.1:8105/"
+
+["go-gitea/gitea"]
+compose = "boot/gitea.yml"
+url = "http://127.0.0.1:8106/"

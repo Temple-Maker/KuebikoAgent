@@ -1,0 +1,5 @@
+# Production sync server, which also serves the web client. Built from the pinned checkout.
+services:
+  app:
+    build: { context: ., dockerfile: sync-server.Dockerfile }
+    ports: ["127.0.0.1:8101:5006"]

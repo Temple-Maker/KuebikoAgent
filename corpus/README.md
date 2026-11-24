@@ -13,6 +13,7 @@ applications are AGPL or GPL, so keep their code out of this tree.
 | --- | --- |
 | `manifest.csv` | `repo,commit,tier` for every item pinned from GitHub |
 | `act-subset.csv` | The fixed 300-case tuning subset of the W3C ACT test cases |
+| `boot.toml`, `boot/` | How to start each `D-core` app from its checkout with Docker Compose |
 
 ## Tiers
 
@@ -60,11 +61,52 @@ phase.
 
 - Every repository in the manifest existed and was read at the pinned commit on
   21 November 2026.
-- No application has been booted. The manifest says nothing about whether one
-  starts cleanly.
+- All six `D-core` applications booted from their pinned checkouts on
+  24 November 2026 (see "Booting the core apps" below). No `D-wide`
+  application has been booted.
 - The real applications are a convenience sample of well-known, active
   projects. They probably have better accessibility than the average site, so
   results on them may understate real-world difficulty.
 - The sizes above support overall recall and false-discovery rates and
   comparisons between versions down to about five points. They do not support
   claims per rule or per framework.
+
+## Booting the core apps
+
+`python -m kuebiko.corpus.boot [REPO ...] [--keep]` builds each app from its
+checkout in `.corpus/` with Docker Compose, waits until it answers on
+127.0.0.1, and then tears it down with its volumes, so every boot starts from
+the same empty state. Code uses `kuebiko.corpus.boot.boot(repo)`, a context
+manager that yields the URL. The app is always built from the pinned source,
+never from a published image of the app. Base images (node, php, alpine and
+Uptime Kuma's `base3`) do come from Docker Hub.
+
+Checked on 24 November 2026 on macOS with Docker 28.3.3 (8 GB, 12 CPUs). The
+cold build includes building the image; the warm boot reuses it. "First page"
+is where Chromium landed after loading the URL and replaying two Tab presses
+with `kuebiko.runner`.
+
+| App | Port | Boots | Cold build | Warm boot | First page |
+| --- | --- | --- | --- | --- | --- |
+| actualbudget/actual | 8101 | yes | 130 s | 6 s | `/bootstrap`, "Welcome to Actual!" |
+| excalidraw/excalidraw | 8102 | yes | 84 s | 7 s | The whiteboard |
+| louislam/uptime-kuma | 8103 | yes, after one fix | 78 s | | `/setup-database`, first-run setup |
+| BookStackApp/BookStack | 8104 | yes | 100 s | 20 s | `/login`, "Log In" |
+| kanboard/kanboard | 8105 | yes | 14 s | 7 s | `/login` |
+| go-gitea/gitea | 8106 | yes | 101 s | 7 s | The installer |
+
+Notes:
+
+- **Uptime Kuma** failed on the first try: its Dockerfile expects `dist/` to be
+  built on the host first (`extra/release/lib.mjs` runs `npm run build` before
+  `docker build`). The recipe now builds `dist/` in a one-shot `node:26`
+  container and mounts it into the app.
+- **BookStack** follows the repository's own development compose file without
+  mailhog and xdebug. It uses `npm ci` rather than `npm install`, which would
+  rewrite the pinned `package-lock.json`. Its build writes `vendor/`,
+  `node_modules/` and `public/dist/` into the checkout; all are ignored by that
+  repository.
+- **Actual** uses `sync-server.Dockerfile`, the production server that also
+  serves the web client.
+- Four apps start on a first-run screen (an installer, a setup page or a login
+  page). Reaching pages behind them needs seeded accounts, which is not done yet.
