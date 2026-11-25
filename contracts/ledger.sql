@@ -130,3 +130,14 @@ WHEN NEW.kind = 'tester-session'
 BEGIN
   SELECT RAISE(ABORT, 'a synthetic session cannot be a tester-session verification');
 END;
+
+-- The same rule seen from the other side: a session that already backs a
+-- 'tester-session' verification cannot be relabelled synthetic afterwards.
+CREATE TRIGGER sessions_stay_real_once_verified
+BEFORE UPDATE OF synthetic ON sessions
+WHEN NEW.synthetic = 1
+  AND EXISTS (SELECT 1 FROM verifications
+              WHERE kind = 'tester-session' AND session_code = OLD.session_code)
+BEGIN
+  SELECT RAISE(ABORT, 'a session backing a tester-session verification cannot become synthetic');
+END;

@@ -24,6 +24,8 @@ SCHEMA_VERSION = "0.1"
 # An email address, or a phone number of ten or more digits. Ten keeps version
 # numbers such as "NVDA 2026.3.1" out. Names cannot be caught this way.
 _CONTACT = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|\+?(?:\d[\s().-]{0,2}){9,}\d")
+# Dates and times are removed first, so "2026-12-01 10:30" is not read as a phone number.
+_DATE_OR_TIME = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)|(?<!\d)\d{1,2}:\d{2}(?::\d{2})?(?!\d)")
 
 
 def contracts_dir() -> Path:
@@ -123,7 +125,7 @@ def _contact_errors(record: dict[str, Any]) -> list[str]:
     return [
         f"{path}: looks like an email address or phone number; testers stay anonymous"
         for path, text in texts
-        if _CONTACT.search(text)
+        if _CONTACT.search(_DATE_OR_TIME.sub(" ", text))
     ]
 
 

@@ -145,6 +145,8 @@ def test_contact_details_in_tester_text_are_rejected(text: dict) -> None:
         {"setup": "400% zoom"},
         {"comment": "Took 3 tries and about 45 seconds to find the submit button"},
         {"task": "Book an appointment for 10:30 on 2026-12-01"},
+        {"task": "Book an appointment for 2026-12-01 10:30"},
+        {"comment": "Gave up at 2026-12-01T10:30:00Z"},
     ],
 )
 def test_ordinary_tester_text_still_validates(text: dict) -> None:
@@ -196,6 +198,13 @@ def test_tester_verification_cannot_be_switched_to_a_synthetic_session(ledger: s
     add_verification(connection, "tester-session", "ses_realtester1")
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute("UPDATE verifications SET session_code = 'ses_scripted001'")
+
+
+def test_verified_session_cannot_be_relabelled_synthetic(ledger: sqlite3.Connection) -> None:
+    connection = ledger
+    add_verification(connection, "tester-session", "ses_realtester1")
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute("UPDATE sessions SET synthetic = 1 WHERE session_code = 'ses_realtester1'")
 
 
 def test_real_and_synthetic_sessions_are_recorded_as_their_own_kind(ledger: sqlite3.Connection) -> None:
