@@ -117,17 +117,40 @@ def test_fix_proposed_and_fixed_need_ledger_rows(conn) -> None:
     assert finding(conn)["status"] == "fixed"
 
 
-@pytest.mark.parametrize("synthetic, allowed", [(1, False), (0, True)])
-def test_only_real_tester_sessions_verify(conn, synthetic: int, allowed: bool) -> None:
-    ledger.upsert_finding(conn, RECORD)
+def add_session(conn, synthetic: int) -> None:
     conn.execute("INSERT INTO sessions (session_code, app, task, setup_json, result, synthetic, consent, created_at) "
                  "VALUES ('ses_abcdefgh', 'example/shop', 'pay', '[\"NVDA on Windows\"]', 'completed', ?, 1, 'x')",
                  (synthetic,))
+
+
+def add_tester_verification(conn) -> None:
     conn.execute("INSERT INTO verifications (finding_id, kind, result, session_code, created_at) "
                  "VALUES (?, 'tester-session', 'pass', 'ses_abcdefgh', 'x')", (FID,))
-    if allowed:
+
+
+def test_real_tester_session_verifies(conn) -> None:
+    ledger.upsert_finding(conn, RECORD)
+    add_session(conn, synthetic=0)
+    add_tester_verification(conn)
+    ledger.set_status(conn, FID, "verified")
+    assert finding(conn)["status"] == "verified"
+
+
+def test_synthetic_session_cannot_back_tester_verification(conn) -> None:
+    # The ledger contract rejects this at insert (AGENTS.md rule 8).
+    ledger.upsert_finding(conn, RECORD)
+    add_session(conn, synthetic=1)
+    with pytest.raises(sqlite3.IntegrityError, match="synthetic session"):
+        add_tester_verification(conn)
+    with pytest.raises(ValueError, match="real tester"):
         ledger.set_status(conn, FID, "verified")
-        assert finding(conn)["status"] == "verified"
-    else:
-        with pytest.raises(ValueError, match="real tester"):
-            ledger.set_status(conn, FID, "verified")
+
+
+def test_session_marked_synthetic_later_does_not_verify(conn) -> None:
+    # The contract's triggers guard verifications, not sessions, so set_status is the last guard.
+    ledger.upsert_finding(conn, RECORD)
+    add_session(conn, synthetic=0)
+    add_tester_verification(conn)
+    conn.execute("UPDATE sessions SET synthetic = 1 WHERE session_code = 'ses_abcdefgh'")
+    with pytest.raises(ValueError, match="real tester"):
+        ledger.set_status(conn, FID, "verified")
