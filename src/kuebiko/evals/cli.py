@@ -153,6 +153,9 @@ def run(args) -> int:
         else:
             worst_case = audit_cap if kind == "audit" else 0.0
         budget.reserve(worst_case)
+        if halt.is_set():  # the run stopped while this case waited for budget
+            budget.settle(worst_case, 0.0)
+            raise Skipped
         findings, cost, error = [], 0.0, None
         try:
             if kind == "instructions":
@@ -168,6 +171,9 @@ def run(args) -> int:
                 )
         except tools.CaseError as failure:
             cost, error = failure.cost_usd, str(failure)
+        except BaseException:
+            halt.set()  # before settle wakes a waiting case, so the waiter sees it
+            raise
         finally:
             budget.settle(worst_case, cost)
         return findings, cost, error
