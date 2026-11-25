@@ -6,6 +6,7 @@ import csv
 import json
 import subprocess
 import threading
+import time
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -322,3 +323,22 @@ def test_checkout_refuses_local_edits(tmp_path: Path, monkeypatch: pytest.Monkey
     data.write_text('{"edited": true}', encoding="utf-8")
     with pytest.raises(act.CorpusError, match="local edits"):
         act.checkout()
+
+
+def test_a_case_waiting_for_budget_does_not_start_after_the_run_stops(
+        fake_act: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    class FailingMessages:
+        def create(self, **request):
+            calls.append(1)
+            time.sleep(0.2)  # long enough for the second worker to be waiting on the budget
+            raise RuntimeError("bad key")  # not transient: stops the run
+
+    monkeypatch.setattr(instructions, "make_client", lambda: SimpleNamespace(messages=FailingMessages()))
+    monkeypatch.setattr(eval_cli, "WORKERS", {"instructions": 2})
+    # Each case reserves about 0.33 USD, so under 0.5 USD the second worker waits for the first.
+    code = cli.main(["eval", "act-subset", "--baseline", "instructions", "--limit", "5",
+                     "--max-cost", "0.5", "--out", str(tmp_path / "runs"), "--quiet"])
+    assert code == 3
+    assert len(calls) == 1
